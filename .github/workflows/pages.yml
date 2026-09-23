@@ -30,7 +30,7 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          VITE_BASE: /first-gift-project/
+          VITE_BASE: /gift-for-you/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/dist
