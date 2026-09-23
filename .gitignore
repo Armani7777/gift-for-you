@@ -18,6 +18,7 @@ node_modules/
 frontend/dist/
 frontend/.env
 frontend/.env.local
+frontend/public/music/indila.m4a
 npm-debug.log*
 
 # OS / IDE

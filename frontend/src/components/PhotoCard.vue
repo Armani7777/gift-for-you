@@ -13,7 +13,7 @@ function onError(event: Event) {
 
 <template>
   <figure class="photo-card">
-    <img v-if="src" :src="src" :alt="alt || caption || 'Invitation photo'" loading="eager" fetchpriority="high" @error="onError" />
+    <img v-if="src" :src="src" :alt="alt || caption || 'Invitation photo'" loading="eager" decoding="sync" fetchpriority="high" @error="onError" />
     <div v-else class="fallback" aria-hidden="true" />
     <figcaption v-if="caption">{{ caption }}</figcaption>
   </figure>

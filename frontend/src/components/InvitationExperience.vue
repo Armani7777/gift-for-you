@@ -12,7 +12,6 @@ import SoftVeilTransition from '@/components/SoftVeilTransition.vue'
 import MemoryCard from '@/components/MemoryCard.vue'
 import MusicDisc from '@/components/MusicDisc.vue'
 import OpeningSequence from '@/components/OpeningSequence.vue'
-import YouTubeLoop from '@/components/YouTubeLoop.vue'
 import PhotoCard from '@/components/PhotoCard.vue'
 import ProgressIndicator from '@/components/ProgressIndicator.vue'
 import RoseFinale from '@/components/RoseFinale.vue'
@@ -20,8 +19,8 @@ import TimePicker from '@/components/TimePicker.vue'
 import type { FinaleNotePayload } from '@/components/FinaleNote.vue'
 import { isTimeStillOpen, selectableDates, selectableTimes, todayIso } from '@/services/dates'
 import { api, persistReply } from '@/services/api'
+import { giftImageUrls, preloadGiftAssets } from '@/services/preload'
 import { formatPrettyDate, formatTime } from '@/services/share'
-import { parseSpotifyTrackId } from '@/services/spotify'
 import type { InvitationPublic } from '@/types/invitation'
 
 const props = withDefaults(
@@ -130,9 +129,8 @@ watch([chosenDate, selectedTime], () => {
   }
 })
 
-const spotifyId = computed(() => parseSpotifyTrackId(invitation.value.spotify_url || ''))
 const roseMusicStarted = ref(false)
-const youtube = ref<{ play: () => void; pause: () => void } | null>(null)
+const cachedImages = giftImageUrls()
 const flowerZoom = ref(false)
 const showLock = ref(false)
 let afterFlowerCover: (() => void) | null = null
@@ -168,31 +166,24 @@ function onPasswordUnlock() {
   startFlowerZoom(() => finishOpening())
 }
 
-function beginMusic() {
-  if (!invitation.value.youtube_id && !invitation.value.music_url) return
-  showDisc.value = true
-  if (invitation.value.youtube_id) {
-    musicOn.value = true
-    youtube.value?.play()
-    window.setTimeout(() => youtube.value?.play(), 400)
-    window.setTimeout(() => youtube.value?.play(), 1200)
-    sessionStorage.setItem(`music:${invitation.value.public_token}`, 'on')
-    return
-  }
+function ensureAudio() {
   const url = invitation.value.music_url
-  if (!url) return
-  if (!audio.value) {
-    audio.value = new Audio(url)
-    audio.value.loop = true
-    audio.value.addEventListener('ended', () => {
-      if (!audio.value) return
-      audio.value.currentTime = 0
-      void audio.value.play()
-    })
-  }
+  if (!url || audio.value) return
+  audio.value = new Audio(url)
+  audio.value.preload = 'auto'
+  audio.value.loop = true
+  audio.value.load()
+}
+
+function beginMusic() {
+  if (!invitation.value.music_url) return
+  showDisc.value = true
+  ensureAudio()
+  const player = audio.value
+  if (!player) return
   const start = invitation.value.music_start_sec || 0
-  if (audio.value.currentTime < start) audio.value.currentTime = start
-  void audio.value.play().then(() => {
+  if (player.currentTime < start) player.currentTime = start
+  void player.play().then(() => {
     musicOn.value = true
     sessionStorage.setItem(`music:${invitation.value.public_token}`, 'on')
   }).catch(() => undefined)
@@ -205,8 +196,15 @@ function startRoseMusic() {
   beginMusic()
 }
 
+let assetsReady: Promise<unknown> = Promise.resolve()
+
 function finishOpening() {
-  go(storyScreens.value[0] || 'question')
+  void Promise.race([
+    assetsReady,
+    new Promise((resolve) => window.setTimeout(resolve, 1200)),
+  ]).then(() => {
+    go(storyScreens.value[0] || 'question')
+  })
 }
 
 const hintPerfect = ref(false)
@@ -216,19 +214,14 @@ let confirmTimer: number | null = null
 let confirmStamp = 0
 
 function preloadImages() {
-  const urls = [
-    `${import.meta.env.BASE_URL}art/remember-this-day.png`,
-    `${import.meta.env.BASE_URL}art/bears-hug.png`,
-    `${import.meta.env.BASE_URL}art/bear-heart.png`,
-    `${import.meta.env.BASE_URL}art/bear-yay.png`,
-    ...invitation.value.memories.map((item) => item.image_url).filter((src): src is string => Boolean(src)),
-    ...invitation.value.photos.map((item) => item.url).filter((src): src is string => Boolean(src)),
-  ]
-  new Set(urls).forEach((src) => {
-    const image = new Image()
-    image.src = src
-  })
+  assetsReady = preloadGiftAssets([
+    ...invitation.value.memories.map((item) => item.image_url),
+    ...invitation.value.photos.map((item) => item.url),
+  ])
 }
+
+ensureAudio()
+preloadImages()
 
 function stopConfirmHint() {
   if (confirmTimer) window.clearInterval(confirmTimer)
@@ -267,7 +260,6 @@ function onMessageRead() {
 }
 
 onMounted(async () => {
-  preloadImages()
   if (props.mode === 'live') {
     try {
       await api.openInvitation(invitation.value.public_token)
@@ -438,25 +430,14 @@ function onMemoryTouchEnd(event: TouchEvent) {
 }
 
 function toggleMusic(force?: boolean) {
-  if (!invitation.value.music_url && !invitation.value.youtube_id) return
+  if (!invitation.value.music_url) return
   const next = force ?? !musicOn.value
   musicOn.value = next
   sessionStorage.setItem(`music:${invitation.value.public_token}`, next ? 'on' : 'off')
-  if (invitation.value.youtube_id) {
-    if (next) youtube.value?.play()
-    else youtube.value?.pause()
-    return
-  }
-  if (!invitation.value.music_url) return
-  if (!audio.value) {
-    audio.value = new Audio(invitation.value.music_url)
-    audio.value.loop = true
-  }
-  if (next) {
-    void audio.value.play()
-  } else {
-    audio.value.pause()
-  }
+  ensureAudio()
+  if (!audio.value) return
+  if (next) void audio.value.play()
+  else audio.value.pause()
 }
 
 async function sendFinaleNote(payload: FinaleNotePayload) {
@@ -499,17 +480,13 @@ onUnmounted(() => {
     <AmbientEffects v-if="screen !== 'done'" />
     <div class="glow" aria-hidden="true" />
     <SoftVeilTransition :active="flowerZoom" @covered="onFlowerCovered" @finished="onFlowerFinished" />
+    <div class="asset-cache" aria-hidden="true">
+      <img v-for="src in cachedImages" :key="src" :src="src" alt="" />
+    </div>
     <MusicDisc
-      v-if="showDisc && (invitation.music_url || invitation.youtube_id)"
+      v-if="showDisc && invitation.music_url"
       :playing="musicOn"
       @toggle="toggleMusic()"
-    />
-    <YouTubeLoop
-      v-if="invitation.youtube_id"
-      ref="youtube"
-      :video-id="invitation.youtube_id"
-      :playing="musicOn"
-      @playing="musicOn = true"
     />
     <OpeningSequence
       v-if="screen === 'opening'"
@@ -527,7 +504,7 @@ onUnmounted(() => {
       v-else-if="screen === 'done'"
       :recipient="invitation.recipient_name"
       :sender="invitation.sender_name"
-      :spotify-id="invitation.youtube_id || invitation.music_url ? '' : spotifyId || ''"
+      spotify-id=""
       @started="startRoseMusic"
     >
       <p v-if="chosenDate" class="muted">
@@ -679,6 +656,15 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.asset-cache {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .experience {
   min-height: 100dvh;
   display: grid;

@@ -19,14 +19,7 @@ export const demoInvitation: InvitationPublic = {
   show_personal_message: false,
   show_memories: true,
   allow_multiple_activities: false,
-  photos: [
-    {
-      id: 'demo-photo',
-      url: 'https://images.unsplash.com/photo-1516589178581-6cd7833ae3b4?auto=format&fit=crop&w=1200&q=80',
-      caption: 'A quiet evening',
-      order: 0,
-    },
-  ],
+  photos: [],
   memories: [
     {
       id: 'm1',
@@ -44,9 +37,9 @@ export const demoInvitation: InvitationPublic = {
   available_dates: dates.map((date, index) => ({ id: index + 1, date })),
   available_times: times.map((time, index) => ({ id: index + 1, date_id: null, time: `${time}:00` })),
   has_music: true,
-  music_url: null,
-  youtube_id: '3gn_6HNGCtY',
-  spotify_url: 'https://open.spotify.com/track/6T93nOlX56R5t2QoSfHgHn',
+  music_url: assetUrl('music/love-story.mp3'),
+  youtube_id: '',
+  spotify_url: '',
   music_start_sec: 0,
   music_end_sec: 0,
   greeting: '',

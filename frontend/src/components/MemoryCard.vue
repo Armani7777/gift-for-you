@@ -14,7 +14,7 @@ function onError(event: Event) {
 <template>
   <article class="memory">
     <div class="image">
-      <img v-if="imageUrl" :src="imageUrl" :alt="title" loading="eager" fetchpriority="high" @error="onError" />
+      <img v-if="imageUrl" :src="imageUrl" :alt="title" loading="eager" decoding="sync" fetchpriority="high" @error="onError" />
     </div>
     <div class="copy">
       <h3>{{ title }}</h3>

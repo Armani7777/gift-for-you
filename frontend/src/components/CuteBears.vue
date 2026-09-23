@@ -18,7 +18,7 @@ const sources: Record<string, string> = {
 
 <template>
   <div class="bears" :class="scene" aria-hidden="true">
-    <img :src="sources[scene]" alt="" decoding="async" fetchpriority="high" />
+    <img :src="sources[scene]" alt="" decoding="sync" fetchpriority="high" />
   </div>
 </template>
 

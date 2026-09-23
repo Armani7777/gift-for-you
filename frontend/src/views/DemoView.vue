@@ -43,7 +43,7 @@ const editor = reactive({
   musicStart: String(route.query.start || '0:00'),
   musicEnd: String(route.query.end || ''),
   musicUrl: demoInvitation.music_url || '',
-  photoUrl: demoInvitation.photos[0]?.url || '',
+  photoUrl: '',
   memoryOneUrl: demoInvitation.memories[0]?.image_url || '',
 })
 
@@ -69,9 +69,9 @@ const invitation = computed<InvitationPublic>(() => {
     spotify_url: editor.spotifyUrl,
     music_start_sec: parseClockToSeconds(editor.musicStart),
     music_end_sec: parseClockToSeconds(editor.musicEnd),
-    has_music: Boolean(editor.musicUrl || editor.spotifyUrl || demoInvitation.music_url || demoInvitation.youtube_id),
+    has_music: Boolean(editor.musicUrl || demoInvitation.music_url),
     music_url: editor.musicUrl || demoInvitation.music_url || null,
-    youtube_id: demoInvitation.youtube_id,
+    youtube_id: '',
     photos: editor.photoUrl
       ? [{ id: 'demo-photo', url: editor.photoUrl, caption: 'A quiet evening', order: 0 }]
       : [],
