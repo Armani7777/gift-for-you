@@ -37,16 +37,23 @@ export async function emailReply(payload: ReplyMailPayload): Promise<void> {
     }
   }
 
-  const response = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(NOTIFY_EMAIL)}`, {
-    method: 'POST',
-    headers: { Accept: 'application/json' },
-    body,
-  })
-  if (!response.ok) {
-    throw new Error('Could not send the email.')
-  }
-  const data = (await response.json().catch(() => ({}))) as { success?: boolean | string; message?: string }
-  if (data.success === false || data.success === 'false') {
-    throw new Error(data.message || 'Could not send the email.')
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), 8000)
+  try {
+    const response = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(NOTIFY_EMAIL)}`, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+      body,
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      throw new Error('Could not send the email.')
+    }
+    const data = (await response.json().catch(() => ({}))) as { success?: boolean | string; message?: string }
+    if (data.success === false || data.success === 'false') {
+      throw new Error(data.message || 'Could not send the email.')
+    }
+  } finally {
+    window.clearTimeout(timer)
   }
 }

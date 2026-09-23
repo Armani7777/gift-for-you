@@ -164,6 +164,7 @@ function onLetterBloom() {
 }
 
 function onPasswordUnlock() {
+  beginMusic()
   startFlowerZoom(() => finishOpening())
 }
 
@@ -214,10 +215,18 @@ let confirmActiveMs = 0
 let confirmTimer: number | null = null
 let confirmStamp = 0
 
-function preloadBears() {
-  ;['art/bears-hug.png', 'art/bear-heart.png', 'art/bear-yay.png'].forEach((src) => {
+function preloadImages() {
+  const urls = [
+    `${import.meta.env.BASE_URL}art/remember-this-day.png`,
+    `${import.meta.env.BASE_URL}art/bears-hug.png`,
+    `${import.meta.env.BASE_URL}art/bear-heart.png`,
+    `${import.meta.env.BASE_URL}art/bear-yay.png`,
+    ...invitation.value.memories.map((item) => item.image_url).filter((src): src is string => Boolean(src)),
+    ...invitation.value.photos.map((item) => item.url).filter((src): src is string => Boolean(src)),
+  ]
+  new Set(urls).forEach((src) => {
     const image = new Image()
-    image.src = `${import.meta.env.BASE_URL}${src}`
+    image.src = src
   })
 }
 
@@ -258,7 +267,7 @@ function onMessageRead() {
 }
 
 onMounted(async () => {
-  preloadBears()
+  preloadImages()
   if (props.mode === 'live') {
     try {
       await api.openInvitation(invitation.value.public_token)
@@ -391,26 +400,23 @@ async function saveAndConfirm() {
   if (busy.value) return
   busy.value = true
   error.value = ''
-  try {
-    if (props.mode !== 'preview') {
-      await persistReply(replyBase(), { required: props.mode === 'live' })
-    }
-    if (props.mode === 'live') {
-      const dateId = invitation.value.available_dates.find((item) => item.date === chosenDate.value)?.id
-      await api.savePlan(invitation.value.public_token, {
+  go('done')
+  if (props.mode !== 'preview') {
+    void persistReply(replyBase()).catch(() => undefined)
+  }
+  if (props.mode === 'live') {
+    const dateId = invitation.value.available_dates.find((item) => item.date === chosenDate.value)?.id
+    void api
+      .savePlan(invitation.value.public_token, {
         activity_ids: selectedActivities.value.map((id) => Number(id)).filter((id) => Number.isFinite(id)),
         date_id: typeof dateId === 'number' ? dateId : undefined,
         date: typeof dateId === 'number' ? undefined : chosenDate.value || undefined,
         time: selectedTime.value || undefined,
       })
-      await api.confirm(invitation.value.public_token)
-    }
-    go('done')
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Could not confirm the date.'
-  } finally {
-    busy.value = false
+      .then(() => api.confirm(invitation.value.public_token))
+      .catch(() => undefined)
   }
+  busy.value = false
 }
 
 const touchStartX = ref(0)
@@ -463,12 +469,12 @@ async function sendFinaleNote(payload: FinaleNotePayload) {
     : undefined
   try {
     if (props.mode !== 'preview') {
-      await persistReply({
+      void persistReply({
         ...replyBase(),
         finale_note: payload.text,
         finale_note_kind: payload.kind,
         media: file,
-      })
+      }).catch(() => undefined)
     }
     if (props.mode === 'live') {
       await api.saveNote(invitation.value.public_token, {

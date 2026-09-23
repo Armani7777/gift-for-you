@@ -14,6 +14,7 @@ const emit = defineEmits<{
 type YTPlayer = {
   playVideo: () => void
   pauseVideo: () => void
+  mute: () => void
   unMute: () => void
   setVolume: (value: number) => void
   seekTo: (seconds: number, allowSeekAhead: boolean) => void
@@ -33,14 +34,21 @@ const ready = ref(false)
 let pendingPlay = false
 
 function play() {
-  if (!player || !ready.value) {
-    pendingPlay = true
-    return
-  }
-  pendingPlay = false
+  pendingPlay = true
+  if (!player || !ready.value) return
   player.unMute()
   player.setVolume(100)
   player.playVideo()
+}
+
+function warm() {
+  if (!player || !ready.value) return
+  player.mute()
+  player.playVideo()
+}
+
+function onUserGesture() {
+  if (pendingPlay || props.playing) play()
 }
 
 function pause() {
@@ -72,24 +80,38 @@ function loadApi() {
       YT?: { Player: new (el: HTMLElement, options: object) => YTPlayer }
       onYouTubeIframeAPIReady?: () => void
     }
-    if (w.YT?.Player) {
+    let settled = false
+    const done = () => {
+      if (settled) return
+      settled = true
       resolve()
+    }
+    if (w.YT?.Player) {
+      done()
       return
     }
     const previous = w.onYouTubeIframeAPIReady
     w.onYouTubeIframeAPIReady = () => {
       previous?.()
-      resolve()
+      done()
     }
     if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
       const script = document.createElement('script')
       script.src = 'https://www.youtube.com/iframe_api'
       document.head.appendChild(script)
     }
+    const poll = window.setInterval(() => {
+      if (w.YT?.Player) {
+        window.clearInterval(poll)
+        done()
+      }
+    }, 80)
+    window.setTimeout(() => window.clearInterval(poll), 15000)
   })
 }
 
 onMounted(async () => {
+  window.addEventListener('pointerdown', onUserGesture, true)
   if (!host.value) return
   await loadApi()
   const w = window as unknown as Window & { YT: { Player: new (el: HTMLElement, options: object) => YTPlayer } }
@@ -98,13 +120,15 @@ onMounted(async () => {
     width: 200,
     height: 200,
     playerVars: {
-      autoplay: 0,
+      autoplay: 1,
+      mute: 1,
       controls: 0,
       disablekb: 1,
       fs: 0,
       modestbranding: 1,
       rel: 0,
       playsinline: 1,
+      origin: window.location.origin,
     },
     events: {
       onReady: () => {
@@ -112,6 +136,7 @@ onMounted(async () => {
         const duration = player?.getDuration() || 0
         loopEnd = duration > 0 && duration <= 130 ? duration - 0.4 : 109
         if (pendingPlay || props.playing) play()
+        else warm()
       },
       onStateChange: (event: { data: number }) => {
         if (event.data === ENDED) {
@@ -141,6 +166,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  window.removeEventListener('pointerdown', onUserGesture, true)
   clearWatch()
   player?.destroy()
   player = null
