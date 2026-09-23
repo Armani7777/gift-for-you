@@ -92,7 +92,7 @@ function loadApi() {
 onMounted(async () => {
   if (!host.value) return
   await loadApi()
-  const w = window as Window & { YT: { Player: new (el: HTMLElement, options: object) => YTPlayer } }
+  const w = window as unknown as Window & { YT: { Player: new (el: HTMLElement, options: object) => YTPlayer } }
   player = new w.YT.Player(host.value, {
     videoId: props.videoId,
     width: 200,
