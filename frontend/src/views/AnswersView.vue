@@ -27,7 +27,7 @@ function isVideo(reply: GuestReply) {
   <main class="page-shell answers">
     <p class="eyebrow">Saved here</p>
     <h1 class="display">Her answers</h1>
-    <p class="muted">Everything she chose is kept on this site. Audio and video notes are attached when she sends them.</p>
+    <p class="muted">On the live gift her answers arrive by email. This page lists them only when the backend is running.</p>
     <p v-if="loading">Loading…</p>
     <p v-else-if="error" class="error">{{ error }}</p>
     <p v-else-if="!replies.length" class="muted">No answers yet.</p>

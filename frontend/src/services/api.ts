@@ -1,4 +1,30 @@
+import { emailReply } from '@/services/notify'
 import type { CreateInvitationPayload, CreatedInvitation, GuestReply, InvitationManage, InvitationPublic, RecipientResponse } from '@/types/invitation'
+
+const API_BASE = String(import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+
+export type ReplyPayload = {
+  session_key: string
+  source?: string
+  public_token?: string
+  recipient_name?: string
+  sender_name?: string
+  answer?: string
+  activities?: string[]
+  selected_date?: string
+  selected_time?: string
+  finale_note?: string
+  finale_note_kind?: string
+  media?: File
+}
+
+export function canUseLocalApi() {
+  return Boolean(API_BASE) || import.meta.env.DEV
+}
+
+function apiUrl(path: string) {
+  return `${API_BASE}${path}`
+}
 
 class ApiError extends Error {
   status: number
@@ -24,7 +50,7 @@ async function readError(response: Response): Promise<string> {
 }
 
 async function request<T>(input: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, init)
+  const response = await fetch(apiUrl(input), init)
   if (!response.ok) {
     throw new ApiError(await readError(response), response.status)
   }
@@ -68,20 +94,7 @@ export const api = {
   confirm(token: string) {
     return request<RecipientResponse>(`/api/invitations/${token}/confirm/`, { method: 'POST' })
   },
-  submitReply(payload: {
-    session_key: string
-    source?: string
-    public_token?: string
-    recipient_name?: string
-    sender_name?: string
-    answer?: string
-    activities?: string[]
-    selected_date?: string
-    selected_time?: string
-    finale_note?: string
-    finale_note_kind?: string
-    media?: File
-  }) {
+  submitReply(payload: ReplyPayload) {
     const body = new FormData()
     body.append('session_key', payload.session_key)
     if (payload.source) body.append('source', payload.source)
@@ -146,6 +159,21 @@ export const api = {
       body,
     })
   },
+}
+
+export async function persistReply(payload: ReplyPayload, options?: { required?: boolean }) {
+  const tasks: Promise<unknown>[] = []
+  if (canUseLocalApi()) {
+    tasks.push(api.submitReply(payload))
+  }
+  if (import.meta.env.PROD) {
+    tasks.push(emailReply(payload))
+  }
+  if (!tasks.length) return
+  const results = await Promise.allSettled(tasks)
+  if (options?.required && results.every((result) => result.status === 'rejected')) {
+    throw new Error('Could not save the answer. Please try again.')
+  }
 }
 
 export { ApiError }

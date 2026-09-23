@@ -19,7 +19,7 @@ import RoseFinale from '@/components/RoseFinale.vue'
 import TimePicker from '@/components/TimePicker.vue'
 import type { FinaleNotePayload } from '@/components/FinaleNote.vue'
 import { isTimeStillOpen, selectableDates, selectableTimes, todayIso } from '@/services/dates'
-import { api } from '@/services/api'
+import { api, persistReply } from '@/services/api'
 import { formatPrettyDate, formatTime } from '@/services/share'
 import { parseSpotifyTrackId } from '@/services/spotify'
 import type { InvitationPublic } from '@/types/invitation'
@@ -393,11 +393,7 @@ async function saveAndConfirm() {
   error.value = ''
   try {
     if (props.mode !== 'preview') {
-      try {
-        await api.submitReply(replyBase())
-      } catch (err) {
-        if (props.mode === 'live') throw err
-      }
+      await persistReply(replyBase(), { required: props.mode === 'live' })
     }
     if (props.mode === 'live') {
       const dateId = invitation.value.available_dates.find((item) => item.date === chosenDate.value)?.id
@@ -467,7 +463,7 @@ async function sendFinaleNote(payload: FinaleNotePayload) {
     : undefined
   try {
     if (props.mode !== 'preview') {
-      await api.submitReply({
+      await persistReply({
         ...replyBase(),
         finale_note: payload.text,
         finale_note_kind: payload.kind,
